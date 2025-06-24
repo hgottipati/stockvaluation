@@ -2,20 +2,14 @@ import streamlit as st
 import pandas as pd
 import json
 
-def human_format(num, precision=2):
-    """Convert a number to a human-readable string (e.g., 1.2M, 3.4B)."""
+def human_format(num):
+    """Format a number with commas and no decimals (e.g., 1,000,000)."""
     if num is None or num == '-' or pd.isnull(num):
         return num
-    num = float(num)
-    abs_num = abs(num)
-    if abs_num >= 1_000_000_000:
-        return f"{num/1_000_000_000:.{precision}f}B"
-    elif abs_num >= 1_000_000:
-        return f"{num/1_000_000:.{precision}f}M"
-    elif abs_num >= 1_000:
-        return f"{num/1_000:.{precision}f}K"
-    else:
-        return f"{num:.{precision}f}"
+    try:
+        return f"{int(round(float(num))):,}"
+    except Exception:
+        return num
 
 def run_valuation(user_inputs):
     # Unpack user inputs
@@ -309,7 +303,7 @@ for result in output['yearly_results']:
         if 'Revenue ($M)' in df_revenue.columns:
             df_revenue['Revenue ($M)'] = df_revenue['Revenue ($M)'].apply(lambda x: human_format(x * 1e6) if pd.notnull(x) else x)
         st.dataframe(df_revenue)
-        st.markdown(f"**Total Company Revenue:** {human_format(result['total_revenue_million'] * 1e6)}")
+        st.markdown(f"**Total Company Revenue:** ${human_format(result['total_revenue_million'] * 1e6)}")
         st.subheader("Market Capitalization Results")
         df_market = pd.DataFrame(result['market_cap'])
         for col in ['Net Income ($M)', 'Market Cap ($B)', 'Stock Price ($)']:
