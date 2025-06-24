@@ -300,6 +300,9 @@ for result in output['yearly_results']:
         for col in ['Revenue ($M)', 'Gross Profit ($M)', 'Operating Expenses ($M)']:
             if col in df_product.columns:
                 df_product[col] = df_product[col].apply(lambda x: human_format(x * 1e6) if x != '-' and pd.notnull(x) else x)
+        # Format Units Sold as integer with commas
+        if 'Units Sold' in df_product.columns:
+            df_product['Units Sold'] = df_product['Units Sold'].apply(lambda x: f"{int(round(x)):,}" if x != '-' and pd.notnull(x) else x)
         st.dataframe(df_product)
         st.subheader("Robotaxi Network Earnings")
         df_robotaxi = pd.DataFrame([result['robotaxi_network']])
