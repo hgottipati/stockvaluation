@@ -2,6 +2,21 @@ import streamlit as st
 import pandas as pd
 import json
 
+def human_format(num, precision=2):
+    """Convert a number to a human-readable string (e.g., 1.2M, 3.4B)."""
+    if num is None or num == '-' or pd.isnull(num):
+        return num
+    num = float(num)
+    abs_num = abs(num)
+    if abs_num >= 1_000_000_000:
+        return f"{num/1_000_000_000:.{precision}f}B"
+    elif abs_num >= 1_000_000:
+        return f"{num/1_000_000:.{precision}f}M"
+    elif abs_num >= 1_000:
+        return f"{num/1_000:.{precision}f}K"
+    else:
+        return f"{num:.{precision}f}"
+
 def run_valuation(user_inputs):
     # Unpack user inputs
     products = user_inputs['products']
@@ -278,14 +293,34 @@ for result in output['yearly_results']:
     if result['Year'] in [2025, 2035]:
         st.header(f"Year {result['Year']}")
         st.subheader("Product Valuation Results")
-        st.dataframe(pd.DataFrame(result['product_valuation']))
+        df_product = pd.DataFrame(result['product_valuation'])
+        for col in ['Revenue ($M)', 'Gross Profit ($M)', 'Operating Expenses ($M)']:
+            if col in df_product.columns:
+                df_product[col] = df_product[col].apply(lambda x: human_format(x * 1e6) if x != '-' and pd.notnull(x) else x)
+        st.dataframe(df_product)
         st.subheader("Robotaxi Network Earnings")
-        st.dataframe(pd.DataFrame([result['robotaxi_network']]))
+        df_robotaxi = pd.DataFrame([result['robotaxi_network']])
+        for col in df_robotaxi.columns:
+            if any(unit in col for unit in ['($M)', 'per Year', 'Earnings', 'Revenue', 'Costs']):
+                df_robotaxi[col] = df_robotaxi[col].apply(lambda x: human_format(x * 1e6) if pd.notnull(x) and isinstance(x, (int, float)) else x)
+        st.dataframe(df_robotaxi)
         st.subheader("Total Company Revenue Breakdown")
-        st.dataframe(pd.DataFrame(result['revenue_breakdown']))
-        st.markdown(f"**Total Company Revenue:** ${result['total_revenue_million']:.2f} million")
+        df_revenue = pd.DataFrame(result['revenue_breakdown'])
+        if 'Revenue ($M)' in df_revenue.columns:
+            df_revenue['Revenue ($M)'] = df_revenue['Revenue ($M)'].apply(lambda x: human_format(x * 1e6) if pd.notnull(x) else x)
+        st.dataframe(df_revenue)
+        st.markdown(f"**Total Company Revenue:** {human_format(result['total_revenue_million'] * 1e6)}")
         st.subheader("Market Capitalization Results")
-        st.dataframe(pd.DataFrame(result['market_cap']))
+        df_market = pd.DataFrame(result['market_cap'])
+        for col in ['Net Income ($M)', 'Market Cap ($B)', 'Stock Price ($)']:
+            if col in df_market.columns:
+                if col == 'Market Cap ($B)':
+                    df_market[col] = df_market[col].apply(lambda x: human_format(x * 1e9) if pd.notnull(x) else x)
+                elif col == 'Net Income ($M)':
+                    df_market[col] = df_market[col].apply(lambda x: human_format(x * 1e6) if pd.notnull(x) else x)
+                else:
+                    df_market[col] = df_market[col].apply(lambda x: human_format(x) if pd.notnull(x) else x)
+        st.dataframe(df_market)
 
 st.header("JSON Output for Website (first and last years for brevity):")
 st.code(json.dumps([output['yearly_results'][0], output['yearly_results'][-1]], indent=4), language='json') 
