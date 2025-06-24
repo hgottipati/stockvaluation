@@ -2,14 +2,23 @@ import streamlit as st
 import pandas as pd
 import json
 
-def human_format(num):
-    """Format a number with commas and no decimals (e.g., 1,000,000)."""
+def human_format(num, precision=2):
+    """Convert a number to a human-readable string (e.g., 1.2M, 3.4B). For $ amounts < 1M, use commas."""
     if num is None or num == '-' or pd.isnull(num):
         return num
     try:
-        return f"{int(round(float(num))):,}"
+        num = float(num)
     except Exception:
         return num
+    abs_num = abs(num)
+    if abs_num >= 1_000_000_000:
+        return f"{num/1_000_000_000:.{precision}f}B"
+    elif abs_num >= 1_000_000:
+        return f"{num/1_000_000:.{precision}f}M"
+    elif abs_num >= 1_000:
+        return f"{num/1_000:.{precision}f}K"
+    else:
+        return f"{int(round(num)):,}"
 
 def run_valuation(user_inputs):
     # Unpack user inputs
