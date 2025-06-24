@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import json
 
+import plotly.graph_objects as go
+
 def human_format(num, precision=2):
     """Convert a number to a human-readable string (e.g., 1.2M, 3.4B). For $ amounts < 1M, use commas."""
     if num is None or num == '-' or pd.isnull(num):
@@ -478,6 +480,33 @@ for result in output['yearly_results']:
         # Convert all columns to string for compatibility
         df_market = df_market.astype(str)
         st.dataframe(df_market)
+
+
+
+# --- Graphs Section ---
+st.header("📈 Key Financial Graphs")
+
+years = [r['Year'] for r in output['yearly_results']]
+total_revenue = [r['total_revenue_million'] for r in output['yearly_results']]
+net_income = [r['market_cap'][0]['Net Income ($M)'] for r in output['yearly_results']]  # Using first scenario (e.g., Conservative)
+market_caps = {mc['Scenario']: [r['market_cap'][i]['Market Cap ($B)'] for r in output['yearly_results']] for i, mc in enumerate(output['yearly_results'][0]['market_cap'])}
+
+# 1. Total Company Revenue Over Time
+st.subheader("Total Company Revenue Over Time")
+st.line_chart({"Year": years, "Total Revenue ($M)": total_revenue})
+
+# 2. Net Income Over Time
+st.subheader("Net Income Over Time (Conservative Scenario)")
+st.line_chart({"Year": years, "Net Income ($M)": net_income})
+
+# 3. Market Cap Over Time (All Scenarios)
+st.subheader("Market Cap Over Time (All Scenarios)")
+fig = go.Figure()
+for scenario, values in market_caps.items():
+    fig.add_trace(go.Scatter(x=years, y=values, mode='lines+markers', name=scenario))
+fig.update_layout(xaxis_title="Year", yaxis_title="Market Cap ($B)")
+st.plotly_chart(fig, use_container_width=True)
+
 
 st.header("JSON Output for Website (first and last years for brevity):")
 st.code(json.dumps([output['yearly_results'][0], output['yearly_results'][-1]], indent=4), language='json') 
