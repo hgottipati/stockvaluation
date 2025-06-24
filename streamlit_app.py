@@ -275,7 +275,24 @@ for scenario, val in default_pe_ratios.items():
     pe_ratios[scenario] = st.sidebar.number_input(f"{scenario} P/E", min_value=1, value=int(val), step=1)
 
 # Years
-years = list(range(2025, 2036))
+st.sidebar.subheader("Projection Period")
+projection_period = st.sidebar.radio("Projection Period", ["5 Years", "10 Years"], index=1)
+if projection_period == "5 Years":
+    years = list(range(2025, 2030))
+else:
+    years = list(range(2025, 2036))
+
+# 5-year override flags and values
+st.sidebar.subheader("5-Year Override (Year 2029)")
+override_flags = {}
+override_values = {}
+for product in default_products:
+    override_flags[product] = st.sidebar.checkbox(f"Override 5-Year for {product}", value=False)
+    if override_flags[product]:
+        if product in ['Cars', 'Robotaxi', 'Optimus']:
+            override_values[product] = st.sidebar.number_input(f"{product} Units Sold (2029 Override)", min_value=0, value=default_products[product]['units_sold'], step=1000)
+        else:
+            override_values[product] = st.sidebar.number_input(f"{product} Revenue (2029 Override, $M)", min_value=0, value=default_products[product]['revenue'], step=1000)
 
 user_inputs = {
     'products': products,
@@ -285,11 +302,135 @@ user_inputs = {
     'base_shares_outstanding': base_shares_outstanding,
     'shares_growth_rate': shares_growth_rate,
     'pe_ratios': pe_ratios,
-    'years': years
+    'years': years,
+    'override_flags': override_flags,
+    'override_values': override_values
 }
 
 # Run valuation
-output = run_valuation(user_inputs)
+def run_valuation_with_override(user_inputs):
+    # Unpack user inputs
+    products = user_inputs['products']
+    robotaxi_network = user_inputs['robotaxi_network']
+    toggles = user_inputs['toggles']
+    net_profit_margin = user_inputs['net_profit_margin']
+    base_shares_outstanding = user_inputs['base_shares_outstanding']
+    shares_growth_rate = user_inputs['shares_growth_rate']
+    pe_ratios = user_inputs['pe_ratios']
+    years = user_inputs['years']
+    override_flags = user_inputs.get('override_flags', {})
+    override_values = user_inputs.get('override_values', {})
+
+    yearly_results = []
+    for year in years:
+        shares_outstanding = base_shares_outstanding * (1 + shares_growth_rate) ** (year - years[0])
+        product_results = []
+        total_product_revenue = 0
+        revenue_breakdown = []
+        for product, data in products.items():
+            # Apply override for 5th year if flag is set
+            if year == years[4] and override_flags.get(product, False):
+                if product in ['Cars', 'Robotaxi', 'Optimus']:
+                    units_sold = override_values[product]
+                    revenue = units_sold * data['sale_price']
+                else:
+                    revenue = override_values[product] * 1e6
+            else:
+                if product in ['Cars', 'Robotaxi', 'Optimus']:
+                    units_sold = data['units_sold'] * (1 + data['growth_rate']) ** (year - years[0])
+                    revenue = units_sold * data['sale_price']
+                else:
+                    revenue = data['revenue'] * (1 + data['growth_rate']) ** (year - years[0]) * 1e6
+            if toggles[product]:
+                op_expenses = revenue * data['op_expense_ratio']
+                net_revenue = revenue - op_expenses
+                gross_profit = net_revenue * data['gross_margin']
+            else:
+                net_revenue = revenue
+                gross_profit = revenue * data['gross_margin']
+            total_product_revenue += net_revenue
+            product_results.append({
+                'Product': product,
+                'Units Sold': units_sold if product in ['Cars', 'Robotaxi', 'Optimus'] else '-',
+                'Sale Price ($)': data['sale_price'] if product in ['Cars', 'Robotaxi', 'Optimus'] else '-',
+                'Gross Margin (%)': data['gross_margin'] * 100,
+                'Revenue ($M)': net_revenue / 1e6,
+                'Gross Profit ($M)': gross_profit / 1e6,
+                'Operating Expenses ($M)' if toggles[product] else None: op_expenses / 1e6 if toggles[product] else None
+            })
+            revenue_breakdown.append({
+                'Category': product,
+                'Revenue ($M)': net_revenue / 1e6
+            })
+
+        # Robotaxi Network (no override for network)
+        network_vehicles = robotaxi_network['network_vehicles'] * (1 + robotaxi_network['vehicle_growth_rate']) ** (year - years[0])
+        operating_cost_per_mile = robotaxi_network['operating_cost_per_mile'] * (1 - robotaxi_network['cost_reduction_rate']) ** (year - years[0])
+        utilization_rate = min(0.70, robotaxi_network['utilization_rate'] * (1 + robotaxi_network['utilization_growth_rate']) ** (year - years[0]))
+        if toggles['Robotaxi Network']:
+            utilized_miles_per_car = robotaxi_network['miles_per_car'] * utilization_rate
+            total_miles = network_vehicles * utilized_miles_per_car
+            gross_revenue = total_miles * robotaxi_network['rider_pays_per_mile']
+            car_owner_earnings = total_miles * robotaxi_network['car_owner_cut_per_mile']
+            tesla_gross_earnings = total_miles * robotaxi_network['tesla_cut_per_mile']
+            operating_costs = total_miles * operating_cost_per_mile
+            tesla_net_earnings = tesla_gross_earnings - operating_costs
+            robotaxi_results = {
+                'Network Vehicles': network_vehicles,
+                'Miles per Car (Utilized)': utilized_miles_per_car,
+                'Utilization Rate (%)': utilization_rate * 100,
+                'Rider Pays per Mile ($)': robotaxi_network['rider_pays_per_mile'],
+                'Car Owner Cut per Mile ($)': robotaxi_network['car_owner_cut_per_mile'],
+                'Tesla Cut per Mile ($)': robotaxi_network['tesla_cut_per_mile'],
+                'Operating Cost per Mile ($)': operating_cost_per_mile,
+                'Gross Revenue ($M)': gross_revenue / 1e6,
+                'Car Owner Earnings ($M)': car_owner_earnings / 1e6,
+                'Tesla Gross Earnings ($M)': tesla_gross_earnings / 1e6,
+                'Operating Costs ($M)': operating_costs / 1e6,
+                'Tesla Net Earnings ($M)': tesla_net_earnings / 1e6
+            }
+            tesla_earnings = tesla_net_earnings
+        else:
+            total_miles = network_vehicles * robotaxi_network['miles_per_car']
+            tesla_earnings = total_miles * robotaxi_network['tesla_cut_per_mile']
+            robotaxi_results = {
+                'Network Vehicles': network_vehicles,
+                'Miles per Car': robotaxi_network['miles_per_car'],
+                'Rider Pays per Mile ($)': robotaxi_network['rider_pays_per_mile'],
+                'Car Owner Cut per Mile ($)': robotaxi_network['car_owner_cut_per_mile'],
+                'Tesla Cut per Mile ($)': robotaxi_network['tesla_cut_per_mile'],
+                'Tesla Earnings per Year ($M)': tesla_earnings / 1e6
+            }
+
+        revenue_breakdown.append({
+            'Category': 'Robotaxi Network',
+            'Revenue ($M)': tesla_earnings / 1e6
+        })
+
+        total_company_revenue = total_product_revenue + tesla_earnings
+        net_income = total_company_revenue * net_profit_margin
+        market_cap_results = []
+        for scenario, pe_ratio in pe_ratios.items():
+            market_cap = net_income * pe_ratio
+            market_cap_results.append({
+                'Scenario': scenario,
+                'P/E Ratio': pe_ratio,
+                'Net Income ($M)': net_income / 1e6,
+                'Market Cap ($B)': market_cap / 1e9,
+                'Stock Price ($)': market_cap / (shares_outstanding * 1e6)
+            })
+
+        yearly_results.append({
+            'Year': year,
+            'product_valuation': product_results,
+            'robotaxi_network': robotaxi_results,
+            'revenue_breakdown': revenue_breakdown,
+            'total_revenue_million': total_company_revenue / 1e6,
+            'market_cap': market_cap_results
+        })
+    return {'yearly_results': yearly_results}
+
+output = run_valuation_with_override(user_inputs)
 
 # Display results for 2025 and 2035
 for result in output['yearly_results']:
