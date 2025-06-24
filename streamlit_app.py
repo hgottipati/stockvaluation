@@ -444,17 +444,25 @@ for result in output['yearly_results']:
         # Format Units Sold as integer with commas
         if 'Units Sold' in df_product.columns:
             df_product['Units Sold'] = df_product['Units Sold'].apply(lambda x: f"{int(round(x)):,}" if x != '-' and pd.notnull(x) else x)
+        # Ensure columns with possible '-' are all strings for Streamlit compatibility
+        for col in ['Sale Price ($)', 'Units Sold', 'Gross Margin (%)', 'Revenue ($M)', 'Gross Profit ($M)', 'Operating Expenses ($M)']:
+            if col in df_product.columns:
+                df_product[col] = df_product[col].astype(str)
         st.dataframe(df_product)
         st.subheader("Robotaxi Network Earnings")
         df_robotaxi = pd.DataFrame([result['robotaxi_network']])
         for col in df_robotaxi.columns:
             if any(unit in col for unit in ['($M)', 'per Year', 'Earnings', 'Revenue', 'Costs']):
                 df_robotaxi[col] = df_robotaxi[col].apply(lambda x: human_format(x * 1e6) if pd.notnull(x) and isinstance(x, (int, float)) else x)
+        # Convert all columns to string for compatibility
+        df_robotaxi = df_robotaxi.astype(str)
         st.dataframe(df_robotaxi)
         st.subheader("Total Company Revenue Breakdown")
         df_revenue = pd.DataFrame(result['revenue_breakdown'])
         if 'Revenue ($M)' in df_revenue.columns:
             df_revenue['Revenue ($M)'] = df_revenue['Revenue ($M)'].apply(lambda x: human_format(x * 1e6) if pd.notnull(x) else x)
+        # Convert all columns to string for compatibility
+        df_revenue = df_revenue.astype(str)
         st.dataframe(df_revenue)
         st.markdown(f"**Total Company Revenue:** ${human_format(result['total_revenue_million'] * 1e6)}")
         st.subheader("Market Capitalization Results")
@@ -467,6 +475,8 @@ for result in output['yearly_results']:
                     df_market[col] = df_market[col].apply(lambda x: human_format(x * 1e6) if pd.notnull(x) else x)
                 else:
                     df_market[col] = df_market[col].apply(lambda x: human_format(x) if pd.notnull(x) else x)
+        # Convert all columns to string for compatibility
+        df_market = df_market.astype(str)
         st.dataframe(df_market)
 
 st.header("JSON Output for Website (first and last years for brevity):")
