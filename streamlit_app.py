@@ -143,21 +143,21 @@ st.sidebar.header("Adjust Assumptions")
 # Default values (from your script)
 default_products = {
     'Cars': {
-        'units_sold': 1800000,
-        'sale_price': 45000,
+        'units_sold': 2000000,
+        'sale_price': 50000,
         'gross_margin': 0.18,
         'op_expense_ratio': 0.80,
         'growth_rate': 0.05
     },
     'Robotaxi': {
-        'units_sold': 10000,
+        'units_sold': 100,
         'sale_price': 30000,
         'gross_margin': 0.25,
         'op_expense_ratio': 0.70,
         'growth_rate': 0.50
     },
     'Optimus': {
-        'units_sold': 1000,
+        'units_sold': 1,
         'sale_price': 20000,
         'gross_margin': 0.30,
         'op_expense_ratio': 0.70,
@@ -177,7 +177,7 @@ default_products = {
     }
 }
 default_robotaxi_network = {
-    'network_vehicles': 8000,
+    'network_vehicles': 100,
     'miles_per_car': 50000,
     'rider_pays_per_mile': 1.00,
     'car_owner_cut_per_mile': 0.60,
